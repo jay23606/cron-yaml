@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "cron-yaml": {
+      "commandName": "Project",
+      "commandLineArgs": "jobs.yaml"
+    }
+  }
+}

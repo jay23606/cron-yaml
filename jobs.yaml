@@ -1,0 +1,38 @@
+- Name: group1
+  Active: true
+  Job:
+    - Name: job1
+      Active: true
+      Minutely: 1
+      Task:
+        - Name: task1
+          Active: true
+          FileName: 'C:\Users\jayab\source\repos\hello-world\bin\Debug\net6.0\hello-world.exe'
+          Arguments: 'ARG1'
+          WorkingDirectory: 'C:\Users\jayab'
+          MaxLogLines: 4
+        - Name: task2
+          Active: true
+          FileName: 'C:\Users\jayab\source\repos\hello-world\bin\Debug\net6.0\hello-world.exe'
+          Arguments: 'ARG1 ARG2'
+          WorkingDirectory: 'C:\Users\jayab\source\repos\hello-world'
+          MaxLogLines: 8
+        - Name: task3
+          FileName: 'C:\Users\jayab\source\repos\hello-world\bin\Debug\net6.0\hello-world.exe'
+          Arguments: 'ARG1 ARG2 ARG3'
+          WorkingDirectory: 'C:\Users\jayab'
+          MaxLogLines: 16
+- Name: group2
+  Active: true
+  Job:
+    - Name: job2
+      Active: true
+      Hourly: 1
+      TimeZone: 'Mountain Standard Time'
+      Task:
+        - Name: task4
+          Active: true
+          FileName: 'C:\Users\jayab\source\repos\hello-world\bin\Debug\net6.0\hello-world.exe'
+          Arguments: 'ARRRG'
+          WorkingDirectory: 'C:\Users\jayab'
+          MaxLogLines: 15
