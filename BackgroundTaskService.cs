@@ -30,27 +30,19 @@ public class JobClass
     public int? Daily { get; set; }
     public List<TaskClass>? Task { get; set; }
     public string? TimeZone { get; set; }
-    public TimeSpan NextRunTime { get; set; } = TimeSpan.Zero;
-    public bool IsDue
-    {
-        get
-        {
-            var nextRunDateTime = DateTime.Today.Add(NextRunTime);
-            return nextRunDateTime <= DateTime.Now;
-        }
-    }
+    public DateTime NextRunTime { get; set; } = DateTime.Now;
+
+    public bool IsDue => 
+        NextRunTime <= DateTime.Now;
+
     public void ResetNextRunTime()
     {
-        var now = DateTime.Now;
-        int interval = 60 * 24; //1 day by default
-        if (Minutely != null) interval = (int)Minutely;
-        else if (Hourly != null) interval = (int)Hourly * 60;
-        else if (Daily != null) interval = (int)Daily * 60 * 24;
-        var nextRunTime = now.AddMinutes(interval);
-        var minutesSinceMidnight = (int)(nextRunTime - nextRunTime.Date).TotalMinutes;
-        var minuteOffset = ((minutesSinceMidnight % interval) + interval) % interval;
-        nextRunTime = nextRunTime.AddMinutes(-minuteOffset);
-        NextRunTime = nextRunTime.TimeOfDay;
+         if (Minutely != null) 
+            NextRunTime = DateTime.Now.AddMinutes((double)Minutely);
+        else if (Hourly != null) 
+            NextRunTime = DateTime.Now.AddHours((double)Hourly);
+        else if (Daily != null) 
+            NextRunTime = DateTime.Now.AddDays((double)Daily);
     }
 }
 
@@ -59,7 +51,8 @@ public class JobClass
 public class BackgroundTaskService : BackgroundService
 {
     //readonly ILogger<BackgroundTaskService> _logger;
-    readonly List<GroupClass> _groups;
+    List<GroupClass> _groups;
+    FileSystemWatcher? _watcher;
 
     public BackgroundTaskService(ILogger<BackgroundTaskService> logger)
     {
@@ -75,13 +68,13 @@ public class BackgroundTaskService : BackgroundService
             await Task.WhenAll(_groups.Where(g => g.Active ?? true).Select(g => ExecuteGroupAsync(g, stoppingToken)));
 
             // Wait for the next cycle
-            await Task.Delay(TimeSpan.FromMinutes(1), stoppingToken);
+            await Task.Delay(TimeSpan.FromSeconds(10), stoppingToken);
         }
     }
 
     async Task ExecuteGroupAsync(GroupClass group, CancellationToken stoppingToken)
     {
-        foreach (var job in group.Job!.Where(j => j.Active ?? true && j.IsDue))
+        foreach (var job in group.Job!.Where(j => (j.Active ?? true) && j.IsDue)) 
         {
             await ExecuteJobAsync(group, job, group.Name!, stoppingToken);
             job.ResetNextRunTime();
@@ -157,20 +150,28 @@ public class BackgroundTaskService : BackgroundService
         await process.WaitForExitAsync();
     }
 
-    static int GetFileLineCount(string path)
-    {
-        int lineCount = 0;
-        using StreamReader reader = new StreamReader(path);
-        while (reader.ReadLine() != null) lineCount++;
-        return lineCount;
-    }
-
     List<GroupClass> ParseYamlData()
     {
         var filePath = Path.Combine(Directory.GetCurrentDirectory(), Environment.GetCommandLineArgs()[1]);
+
+        if (_watcher != null) _watcher.Dispose();
+        _watcher = new FileSystemWatcher();
+        _watcher.Path = Path.GetDirectoryName(filePath)!;
+        _watcher.Filter = Path.GetFileName(filePath);
+        _watcher.NotifyFilter = NotifyFilters.LastWrite;
+        _watcher.Changed += OnFileChanged;
+        _watcher.EnableRaisingEvents = true;
+
         var yaml = File.ReadAllText(filePath);
         var deserializer = new DeserializerBuilder().Build();
         var data = deserializer.Deserialize<List<GroupClass>>(yaml);
         return data;
+    }
+
+    void OnFileChanged(object sender, FileSystemEventArgs e)
+    {
+        Console.WriteLine($"Reloading YAML file {e.Name} due to a change");
+        List<GroupClass> newGroups = ParseYamlData();
+        if (newGroups != null) _groups = newGroups;
     }
 }
