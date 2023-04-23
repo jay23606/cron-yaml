@@ -48,7 +48,7 @@ Example yaml file:
 
 - Jobs and tasks will be executed sequentially, while groups will be executed concurrently.
 - In case Minutely, Hourly, or Daily values are not provided, the default value will be Daily with a value of 1.
-- To limit the size of a task's StdOut, you can use MaxLogLines (default 1000), which will truncate the oldest lines first.
+- To limit the size of a task's StdOut log file size, you can use MaxLogLines (default 1000), which will truncate the oldest lines first.
 - You can deactivate a group, job, or task by setting the Active parameter to false.
 - You can adjust the TimeZone for a job to display an appropriate timestamp in the log files.
 
