@@ -31,7 +31,7 @@ public class JobClass
     public List<TaskClass>? Task { get; set; }
     public string? TimeZone { get; set; }
     public DateTime NextRunTime { get; set; } = DateTime.Now;
-
+    public bool PreserveNextRunTime { get; set; } = true;
     public bool IsDue => 
         NextRunTime <= DateTime.Now;
 
@@ -168,10 +168,30 @@ public class BackgroundTaskService : BackgroundService
         return data;
     }
 
+    private readonly object _lockObject = new object();
     void OnFileChanged(object sender, FileSystemEventArgs e)
     {
-        Console.WriteLine($"Reloading YAML file {e.Name} due to a change");
-        List<GroupClass> newGroups = ParseYamlData();
-        if (newGroups != null) _groups = newGroups;
+        try
+        {
+            Console.WriteLine($"Reloading YAML file {e.Name} due to a change");
+            // Use a lock to ensure thread safety
+            lock (_lockObject)
+            {
+                List<GroupClass> newGroups = ParseYamlData();
+
+                // Update the NextRunTime property for jobs that need to preserve it
+                var newJobsByKey = newGroups.SelectMany(g => g.Job!.Select(j => new { GroupName = g.Name, Job = j }))
+                                            .ToDictionary(j => $"{j.GroupName}|{j.Job.Name}");
+                foreach (var group in _groups)
+                {
+                    foreach (var job in group.Job!.Where(j => j.PreserveNextRunTime))
+                        if (newJobsByKey.TryGetValue($"{group.Name}|{job.Name}", out var newJob))
+                            newJob.Job.NextRunTime = job.NextRunTime;
+                }
+                _groups = newGroups;
+            }
+        }
+        catch (Exception ex) { Console.WriteLine($"Error reloading YAML file {e.Name}: {ex.Message}"); }
+
     }
 }
