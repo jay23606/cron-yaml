@@ -51,8 +51,7 @@ Example yaml file:
 - To limit the size of a task's StdOut log file size, you can use MaxLogLines (default 1000), which will truncate the oldest lines first.
 - You can deactivate a group, job, or task by setting the Active parameter to false.
 - You can adjust the TimeZone for a job to display an appropriate timestamp in the log files.
-- If the YAML file is changed while running then it will reload the YAML file which will also trigger the jobs to run.
-
+- If the YAML file changes during runtime, the program will reload it and preserve the jobs' NextRunTime by default. To disable this, set PreserveNextRunTime to false.
 
 
 
