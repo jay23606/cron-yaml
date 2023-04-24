@@ -4,50 +4,6 @@ using System.Diagnostics;
 using YamlDotNet.Serialization;
 namespace cron_yaml;
 
-public class TaskClass
-{
-    public string? Name { get; set; }
-    public string? FileName { get; set; }
-    public string? Arguments { get; set; }
-    public string? WorkingDirectory { get; set; }
-    public bool? Active { get; set; }
-    public int? MaxLogLines { get; set; }
-}
-
-public class GroupClass
-{
-    public string? Name { get; set; }
-    public bool? Active { get; set; }
-    public List<JobClass>? Job { get; set; }
-}
-
-public class JobClass
-{
-    public string? Name { get; set; }
-    public bool? Active { get; set; }
-    public int? Minutely { get; set; }
-    public int? Hourly { get; set; }
-    public int? Daily { get; set; }
-    public List<TaskClass>? Task { get; set; }
-    public string? TimeZone { get; set; }
-    public DateTime NextRunTime { get; set; } = DateTime.Now;
-    public bool PreserveNextRunTime { get; set; } = true;
-    public bool IsDue => 
-        NextRunTime <= DateTime.Now;
-
-    public void ResetNextRunTime()
-    {
-         if (Minutely != null) 
-            NextRunTime = DateTime.Now.AddMinutes((double)Minutely);
-        else if (Hourly != null) 
-            NextRunTime = DateTime.Now.AddHours((double)Hourly);
-        else if (Daily != null) 
-            NextRunTime = DateTime.Now.AddDays((double)Daily);
-    }
-}
-
-
-
 public class BackgroundTaskService : BackgroundService
 {
     //readonly ILogger<BackgroundTaskService> _logger;
@@ -66,8 +22,6 @@ public class BackgroundTaskService : BackgroundService
         {
             // Execute each group in parallel
             await Task.WhenAll(_groups.Where(g => g.Active ?? true).Select(g => ExecuteGroupAsync(g, stoppingToken)));
-
-            // Wait for the next cycle
             await Task.Delay(TimeSpan.FromSeconds(10), stoppingToken);
         }
     }
@@ -77,7 +31,7 @@ public class BackgroundTaskService : BackgroundService
         foreach (var job in group.Job!.Where(j => (j.Active ?? true) && j.IsDue)) 
         {
             await ExecuteJobAsync(group, job, group.Name!, stoppingToken);
-            job.ResetNextRunTime();
+            job.ResetNextRuntime();
         }
     }
 
@@ -100,57 +54,15 @@ public class BackgroundTaskService : BackgroundService
                 CreateNoWindow = true
             }
         };
-
-        
         
         process.OutputDataReceived += async (sender, args) =>
         {
             if (args.Data == null) return;
-
-            //var logPath = Path.Combine(Directory.GetCurrentDirectory(), $"{group.Name}-{job.Name}-{task.Name}.log");
-            var groupDirectory = Path.Combine(Directory.GetCurrentDirectory(), group.Name!.ReplaceInvalidPathChars());
-            var jobDirectory = Path.Combine(groupDirectory, job.Name!.ReplaceInvalidPathChars());
-            var logPath = Path.Combine(jobDirectory, $"{task.Name!.ReplaceInvalidFilenameChars()}.log");
-            if (!Directory.Exists(groupDirectory)) Directory.CreateDirectory(groupDirectory);
-            if (!Directory.Exists(jobDirectory)) Directory.CreateDirectory(jobDirectory);
-
-            //Custom logging
+            var logPath = $"{task.Name}.log".GetPath(group.Name!, job.Name!); //Creates directories
             DateTime time = DateTime.UtcNow;
-            if (job.TimeZone != null)
-                time = TimeZoneInfo.ConvertTimeFromUtc(time, TimeZoneInfo.FindSystemTimeZoneById(job.TimeZone!));
-            
+            if (job.TimeZone != null) time = TimeZoneInfo.ConvertTimeFromUtc(time, TimeZoneInfo.FindSystemTimeZoneById(job.TimeZone!));
             var data = $"[{time.ToString("yy-MM-dd HH:mm:ss")}] {args.Data}";
-            int bufferSize = 4096, lineCount = 0;
-            var lines = new List<string>();
-            using (var fileStream = new FileStream(logPath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite, bufferSize, true))
-            {
-                using (var streamReader = new StreamReader(fileStream))
-                using (var streamWriter = new StreamWriter(fileStream))
-                {
-                    var maxLogLines = task.MaxLogLines ?? 1000;
-                    // Read the existing lines up to the maximum log lines
-                    while (!streamReader.EndOfStream && lineCount < maxLogLines)
-                    {
-                        var line = await streamReader.ReadLineAsync();
-                        lines.Add(line!);
-                        lineCount++;
-                    }
-                    if (lines.Count >= maxLogLines)
-                    {
-                        var removeCount = lines.Count - maxLogLines + 1;
-                        lines.RemoveRange(0, removeCount);
-                        // Seek to the beginning of the file and truncate it
-                        fileStream.Seek(0, SeekOrigin.Begin);
-                        fileStream.SetLength(0);
-                        // Write the trimmed lines back to the beginning of the file
-                        foreach (var line in lines) await streamWriter.WriteLineAsync(line);
-                    }
-                    // Write the new log data to the end of the file
-                    await streamWriter.WriteLineAsync(data);
-                    Console.WriteLine(data);
-                    await streamWriter.FlushAsync();
-                }
-            }
+            await data.LogTo(logPath, task.MaxLogLines ?? 1000); //Custom logging
         };
         process.Start();
         process.BeginOutputReadLine();
@@ -184,21 +96,11 @@ public class BackgroundTaskService : BackgroundService
             // Use a lock to ensure thread safety
             lock (_lockObject)
             {
-                List<GroupClass> newGroups = ParseYamlData();
-
-                // Update the NextRunTime property for jobs that need to preserve it
-                var newJobsByKey = newGroups.SelectMany(g => g.Job!.Select(j => new { GroupName = g.Name, Job = j }))
-                                            .ToDictionary(j => $"{j.GroupName}|{j.Job.Name}");
-                foreach (var group in _groups)
-                {
-                    foreach (var job in group.Job!.Where(j => j.PreserveNextRunTime))
-                        if (newJobsByKey.TryGetValue($"{group.Name}|{job.Name}", out var newJob))
-                            newJob.Job.NextRunTime = job.NextRunTime;
-                }
+                var newGroups = ParseYamlData();
+                newGroups.UpdateNextRuntime(_groups); //update NextRuntime if PreserveNextRuntime is set (true by default)
                 _groups = newGroups;
             }
         }
         catch (Exception ex) { Console.WriteLine($"Error reloading YAML file {e.Name}: {ex.Message}"); }
-
     }
 }
