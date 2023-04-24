@@ -36,7 +36,7 @@ Example yaml file:
     - Name: job2
       Active: true
       Hourly: 1
-      TimeZone: 'Mountain Standard Time'
+      TimeZone: 'Eastern Standard Time'
       Task:
         - Name: task4
           Active: true
