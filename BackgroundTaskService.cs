@@ -101,23 +101,24 @@ public class BackgroundTaskService : BackgroundService
             }
         };
 
-        //var logPath = Path.Combine(Directory.GetCurrentDirectory(), $"{group.Name}-{job.Name}-{task.Name}.log");
-        var groupDirectory = Path.Combine(Directory.GetCurrentDirectory(), group.Name!);
-        var jobDirectory = Path.Combine(groupDirectory, job.Name!);
-        var logPath = Path.Combine(jobDirectory, $"{task.Name}.log");
-        if (!Directory.Exists(groupDirectory)) Directory.CreateDirectory(groupDirectory);
-        if (!Directory.Exists(jobDirectory)) Directory.CreateDirectory(jobDirectory);
+        
         
         process.OutputDataReceived += async (sender, args) =>
         {
-            //Custom logging
             if (args.Data == null) return;
+
+            //var logPath = Path.Combine(Directory.GetCurrentDirectory(), $"{group.Name}-{job.Name}-{task.Name}.log");
+            var groupDirectory = Path.Combine(Directory.GetCurrentDirectory(), group.Name!.ReplaceInvalidPathChars());
+            var jobDirectory = Path.Combine(groupDirectory, job.Name!.ReplaceInvalidPathChars());
+            var logPath = Path.Combine(jobDirectory, $"{task.Name!.ReplaceInvalidFilenameChars()}.log");
+            if (!Directory.Exists(groupDirectory)) Directory.CreateDirectory(groupDirectory);
+            if (!Directory.Exists(jobDirectory)) Directory.CreateDirectory(jobDirectory);
+
+            //Custom logging
             DateTime time = DateTime.UtcNow;
             if (job.TimeZone != null)
-            {
-                TimeZoneInfo mountainZone = TimeZoneInfo.FindSystemTimeZoneById(job.TimeZone!);
-                time = TimeZoneInfo.ConvertTimeFromUtc(time, mountainZone);
-            }
+                time = TimeZoneInfo.ConvertTimeFromUtc(time, TimeZoneInfo.FindSystemTimeZoneById(job.TimeZone!));
+            
             var data = $"[{time.ToString("yy-MM-dd HH:mm:ss")}] {args.Data}";
             int bufferSize = 4096, lineCount = 0;
             var lines = new List<string>();
