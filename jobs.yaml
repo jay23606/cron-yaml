@@ -22,13 +22,23 @@
           Arguments: 'ARG1 ARG2 ARG3'
           WorkingDirectory: 'C:\Users\jayab'
           MaxLogLines: 16
+    - Name: job1A
+      Active: true
+      Minutely: 1
+      Task:
+        - Name: task1A
+          Active: true
+          FileName: 'C:\Users\jayab\source\repos\hello-world\bin\Debug\net6.0\hello-world.exe'
+          Arguments: 'ARG1A'
+          WorkingDirectory: 'C:\Users\jayab'
+          MaxLogLines: 4
 - Name: group2
   Active: true
   Job:
     - Name: job2
       Active: true
       Hourly: 1
-      TimeZone: 'Mountain Standard Time'
+      TimeZone: 'Eastern Standard Time'
       Task:
         - Name: task4
           Active: true

@@ -101,7 +101,13 @@ public class BackgroundTaskService : BackgroundService
             }
         };
 
-        var logPath = Path.Combine(Directory.GetCurrentDirectory(), $"{group.Name}-{job.Name}-{task.Name}.log");
+        //var logPath = Path.Combine(Directory.GetCurrentDirectory(), $"{group.Name}-{job.Name}-{task.Name}.log");
+        var groupDirectory = Path.Combine(Directory.GetCurrentDirectory(), group.Name!);
+        var jobDirectory = Path.Combine(groupDirectory, job.Name!);
+        var logPath = Path.Combine(jobDirectory, $"{task.Name}.log");
+        if (!Directory.Exists(groupDirectory)) Directory.CreateDirectory(groupDirectory);
+        if (!Directory.Exists(jobDirectory)) Directory.CreateDirectory(jobDirectory);
+        
         process.OutputDataReceived += async (sender, args) =>
         {
             //Custom logging
